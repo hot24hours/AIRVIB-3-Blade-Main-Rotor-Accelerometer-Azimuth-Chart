@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIRVIB 3-Blade Main Rotor & Accelerometer Azimuth Chart</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: #f8fafc;
+    }
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    @media print {
+      @page { size: A4 portrait; margin: 12mm; }
+      .no-print { display: none !important; }
+      body { background-color: #ffffff !important; color: #000000 !important; padding: 0 !important; }
+      .print-shadow-none { box-shadow: none !important; border-color: #cbd5e1 !important; }
+    }
+  </style>
+</head>
+<body class="text-slate-800 min-h-screen p-4 sm:p-6 lg:p-8">
+
+  <div class="max-w-5xl mx-auto space-y-6">
+    
+    <!-- Header Bar -->
+    <header class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div class="flex items-center space-x-3.5">
+        <div class="w-12 h-12 rounded-xl bg-sky-500 text-white flex items-center justify-center shadow-md shadow-sky-200 shrink-0">
+          <i data-lucide="fan" class="w-7 h-7 animate-spin-slow"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">AIRVIB 3-Blade Main Rotor & Accelerometer Azimuth Chart</h1>
+          </div>
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-0.5">
+            AIRVIB 3-Blade Main Rotor & Accelerometer Azimuth Orientation Tool
+          </p>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Interactive Card -->
+    <main class="bg-white border border-slate-200 rounded-2xl p-5 sm:p-7 shadow-sm space-y-6 print-shadow-none">
+      
+      <!-- Control Panel -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+        
+        <!-- Main Rotor Direction Selection -->
+        <div class="space-y-1.5">
+          <label for="rotor_direction" class="block text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+            <i data-lucide="rotate-cw" class="w-3.5 h-3.5 text-sky-600"></i>
+            <span>Main Rotor Rotation</span>
+          </label>
+          <select id="rotor_direction" onchange="draw3BladeDiagram()" class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 bg-white font-bold text-slate-800 text-sm cursor-pointer shadow-sm focus:ring-2 focus:ring-sky-500 focus:outline-none transition">
+            <option value="CCW" selected>Counter-Clockwise (CCW)</option>
+            <option value="CW">Clockwise (CW)</option>
+          </select>
+        </div>
+        
+        <!-- Accelerometer Azimuth Angle Selection -->
+        <div class="space-y-1.5">
+          <label for="acc_orientation" class="block text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+            <i data-lucide="compass" class="w-3.5 h-3.5 text-sky-600"></i>
+            <span>Accelerometer Mounting Azimuth (12H / 360°)</span>
+          </label>
+          <select id="acc_orientation" onchange="draw3BladeDiagram()" class="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 bg-white font-bold text-slate-800 text-sm cursor-pointer shadow-sm focus:ring-2 focus:ring-sky-500 focus:outline-none transition">
+            <option value="0" selected>0° (12H)</option>
+            <option value="90">90° (3H)</option>
+            <option value="180">180° (6H)</option>
+            <option value="270">270° (9H)</option>
+          </select>
+        </div>
+
+      </div>
+
+      <!-- Interactive Canvas Area -->
+      <div class="w-full aspect-[16/11] max-h-[580px] flex items-center justify-center bg-slate-50 rounded-xl border border-slate-100 overflow-hidden relative shadow-inner">
+        <canvas id="bladeCanvas" width="900" height="600" class="w-full h-full object-contain touch-none"></canvas>
+      </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center text-xs font-semibold text-slate-400 py-2 no-print">
+      AIRVIB Rotorcraft Dynamics & Vibration Analysis System &copy; 2026
+    </footer>
+
+  </div>
+
+  <script>
+    window.addEventListener('load', () => {
+      if (window.lucide) lucide.createIcons();
+      draw3BladeDiagram();
+    });
+
+    window.addEventListener('resize', draw3BladeDiagram);
+
+    function draw3BladeDiagram() {
+      const canvas = document.getElementById('bladeCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      const cx = w / 2, cy = h / 2;
+      const rDial = 210; // Outer clock dial radius
+
+      // User Inputs
+      const direction = document.getElementById('rotor_direction').value; // 'CCW' or 'CW'
+      const rotOffset = parseInt(document.getElementById('acc_orientation').value) || 0;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Base Radian calculation for 12H (0°)
+      let visualDegZero = (direction === 'CW') ? rotOffset : -rotOffset;
+      let radRed = (visualDegZero - 90) * Math.PI / 180; // Red Blade (0°) Radian
+
+      // Fixed 120° Spatial Intervals relative to Red Blade
+      let radBlue = radRed + (120 * Math.PI / 180);
+      let radYellow = radRed + (240 * Math.PI / 180);
+
+      // Dynamic Ball Numbering based on Rotation Direction
+      let numBlue, numYellow;
+      if (direction === 'CCW') {
+        numYellow = '2';
+        numBlue = '3';
+      } else {
+        numBlue = '2';
+        numYellow = '3';
+      }
+
+      let blades = [
+        { rad: radRed, num: '1', color: '#ef4444', name: 'Red Blade' },
+        { rad: radBlue, num: numBlue, color: '#3b82f6', name: 'Blue Blade' },
+        { rad: radYellow, num: numYellow, color: '#eab308', name: 'Yellow Blade' }
+      ];
+
+      // 1. Rotor Disc Sweep Area (Dashed Ring)
+      const rDisc = 145;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rDisc, 0, 2 * Math.PI);
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.setLineDash([5, 5]);
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 2. High-Precision Vector Helicopter Silhouette (Black Line-Art)
+      ctx.save();
+
+      // Landing Skids & Cross Struts
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 2.2;
+      ctx.lineCap = 'round';
+
+      // Left Skid
+      ctx.beginPath();
+      ctx.moveTo(cx - 26, cy - 42); ctx.lineTo(cx - 26, cy + 24);
+      ctx.moveTo(cx - 15, cy - 22); ctx.lineTo(cx - 26, cy - 22);
+      ctx.moveTo(cx - 13, cy + 10); ctx.lineTo(cx - 26, cy + 10);
+      ctx.stroke();
+
+      // Right Skid
+      ctx.beginPath();
+      ctx.moveTo(cx + 26, cy - 42); ctx.lineTo(cx + 26, cy + 24);
+      ctx.moveTo(cx + 15, cy - 22); ctx.lineTo(cx + 26, cy - 22);
+      ctx.moveTo(cx + 13, cy + 10); ctx.lineTo(cx + 26, cy + 10);
+      ctx.stroke();
+
+      // Fuselage Body Silhouette
+      ctx.fillStyle = '#0f172a';
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 72); // Nose Tip
+      ctx.bezierCurveTo(cx - 18, cy - 64, cx - 22, cy - 32, cx - 20, cy + 12);
+      ctx.bezierCurveTo(cx - 16, cy + 38, cx - 8, cy + 60, cx - 4, cy + 80);
+      ctx.lineTo(cx - 2, cy + 140); // Tail boom extension
+      ctx.lineTo(cx + 2, cy + 140);
+      ctx.lineTo(cx + 4, cy + 80);
+      ctx.bezierCurveTo(cx + 8, cy + 60, cx + 16, cy + 38, cx + 20, cy + 12);
+      ctx.bezierCurveTo(cx + 22, cy - 32, cx + 18, cy - 64, cx, cy - 72);
+      ctx.closePath();
+      ctx.fill();
+
+      // Cockpit Windshield & Side Windows
+      ctx.fillStyle = '#ffffff';
+
+      // Left Front Windshield
+      ctx.beginPath();
+      ctx.moveTo(cx - 2, cy - 67);
+      ctx.bezierCurveTo(cx - 11, cy - 62, cx - 15, cy - 45, cx - 13, cy - 32);
+      ctx.lineTo(cx - 2, cy - 32);
+      ctx.closePath();
+      ctx.fill();
+
+      // Right Front Windshield
+      ctx.beginPath();
+      ctx.moveTo(cx + 2, cy - 67);
+      ctx.bezierCurveTo(cx + 11, cy - 62, cx + 15, cy - 45, cx + 13, cy - 32);
+      ctx.lineTo(cx + 2, cy - 32);
+      ctx.closePath();
+      ctx.fill();
+
+      // Left Side Window
+      ctx.beginPath();
+      ctx.moveTo(cx - 14, cy - 28);
+      ctx.lineTo(cx - 3, cy - 28);
+      ctx.lineTo(cx - 3, cy - 13);
+      ctx.bezierCurveTo(cx - 9, cy - 13, cx - 13, cy - 19, cx - 14, cy - 28);
+      ctx.closePath();
+      ctx.fill();
+
+      // Right Side Window
+      ctx.beginPath();
+      ctx.moveTo(cx + 14, cy - 28);
+      ctx.lineTo(cx + 3, cy - 28);
+      ctx.lineTo(cx + 3, cy - 13);
+      ctx.bezierCurveTo(cx + 9, cy - 13, cx + 13, cy - 19, cx + 14, cy - 28);
+      ctx.closePath();
+      ctx.fill();
+
+      // Tail Boom Spine Line
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy + 32);
+      ctx.lineTo(cx, cy + 132);
+      ctx.stroke();
+
+      // Horizontal Stabilizer & Endplates
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(cx - 24, cy + 115, 48, 5.5); // Stabilizer Wing
+      ctx.fillRect(cx - 26, cy + 108, 4.5, 19); // Left Vertical Endplate
+      ctx.fillRect(cx + 21.5, cy + 108, 4.5, 19); // Right Vertical Endplate
+
+      // Tail Rotor Assembly
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(cx - 9, cy + 144); ctx.lineTo(cx + 9, cy + 144);
+      ctx.moveTo(cx, cy + 140);    ctx.lineTo(cx, cy + 150);
+      ctx.stroke();
+
+      ctx.restore();
+
+      // 3. Render 3 Main Rotor Blades (with Pitch Grips)
+      const rBlade = 135;
+      blades.forEach((b) => {
+        const tipX = cx + rBlade * Math.cos(b.rad);
+        const tipY = cy + rBlade * Math.sin(b.rad);
+
+        // Blade Pitch Grip Hub Cuff
+        const cuffStart = 10;
+        const cuffEnd = 32;
+        const radPerp = b.rad + Math.PI / 2;
+        
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath();
+        ctx.moveTo(cx + cuffStart * Math.cos(b.rad) + 3.2 * Math.cos(radPerp), cy + cuffStart * Math.sin(b.rad) + 3.2 * Math.sin(radPerp));
+        ctx.lineTo(cx + cuffEnd * Math.cos(b.rad) + 6 * Math.cos(radPerp), cy + cuffEnd * Math.sin(b.rad) + 6 * Math.sin(radPerp));
+        ctx.lineTo(cx + cuffEnd * Math.cos(b.rad) - 6 * Math.cos(radPerp), cy + cuffEnd * Math.sin(b.rad) - 6 * Math.sin(radPerp));
+        ctx.lineTo(cx + cuffStart * Math.cos(b.rad) - 3.2 * Math.cos(radPerp), cy + cuffStart * Math.sin(b.rad) - 3.2 * Math.sin(radPerp));
+        ctx.closePath();
+        ctx.fill();
+
+        // Color-coded Blade Body
+        ctx.strokeStyle = b.color;
+        ctx.lineWidth = 5.5;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(tipX, tipY);
+        ctx.stroke();
+
+        // Tip Number Badge
+        const ballDist = rBlade + 18;
+        const ballX = cx + ballDist * Math.cos(b.rad);
+        const ballY = cy + ballDist * Math.sin(b.rad);
+
+        ctx.beginPath();
+        ctx.arc(ballX, ballY, 12, 0, 2 * Math.PI);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.strokeStyle = b.color;
+        ctx.lineWidth = 2.8;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(ballX, ballY, 10, 0, 2 * Math.PI);
+        ctx.fillStyle = b.color;
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 13px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(b.num, ballX, ballY);
+      });
+
+      // Rotor Hub Center Pin
+      ctx.beginPath();
+      ctx.arc(cx, cy, 8.5, 0, 2 * Math.PI);
+      ctx.fillStyle = '#0f172a';
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2.2;
+      ctx.stroke();
+
+      // 4. Direction Arc Arrow
+      ctx.strokeStyle = '#0284c7';
+      ctx.lineWidth = 2.8;
+      const rArrow = 85;
+
+      let tipX, tipY, tangentAngle;
+
+      if (direction === 'CCW') {
+        const startAngle = radRed - 0.2;
+        const endAngle = radRed - Math.PI / 1.8;
+        ctx.beginPath();
+        ctx.arc(cx, cy, rArrow, startAngle, endAngle, true);
+        ctx.stroke();
+
+        tipX = cx + rArrow * Math.cos(endAngle);
+        tipY = cy + rArrow * Math.sin(endAngle);
+        tangentAngle = endAngle - Math.PI / 2;
+      } else {
+        const startAngle = radRed + 0.2;
+        const endAngle = radRed + Math.PI / 1.8;
+        ctx.beginPath();
+        ctx.arc(cx, cy, rArrow, startAngle, endAngle, false);
+        ctx.stroke();
+
+        tipX = cx + rArrow * Math.cos(endAngle);
+        tipY = cy + rArrow * Math.sin(endAngle);
+        tangentAngle = endAngle + Math.PI / 2;
+      }
+
+      ctx.save();
+      ctx.translate(tipX, tipY);
+      ctx.rotate(tangentAngle);
+      ctx.fillStyle = '#0284c7';
+      ctx.beginPath();
+      ctx.moveTo(9, 0);
+      ctx.lineTo(-7, -6);
+      ctx.lineTo(-3.5, 0);
+      ctx.lineTo(-7, 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+
+      // 5. Accelerometer Icon Mounted at Reference Azimuth
+      let sensorX = cx + rDial * Math.cos(radRed);
+      let sensorY = cy + rDial * Math.sin(radRed);
+
+      ctx.save();
+      ctx.translate(sensorX, sensorY);
+      ctx.rotate(radRed + Math.PI / 2);
+
+      // BNC Plug
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.rect(-4.5, -28, 9, 6.5);
+      ctx.fill(); ctx.stroke();
+
+      // Sensor Body
+      ctx.fillStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.rect(-14, -21.5, 28, 17.5);
+      ctx.fill(); ctx.stroke();
+
+      // Sensing Arrow
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.moveTo(0, -18.5);
+      ctx.lineTo(-4, -12);
+      ctx.lineTo(-1.8, -12);
+      ctx.lineTo(-1.8, -6.5);
+      ctx.lineTo(1.8, -6.5);
+      ctx.lineTo(1.8, -12);
+      ctx.lineTo(4, -12);
+      ctx.closePath();
+      ctx.fill();
+
+      // Nut Base
+      ctx.fillStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.rect(-11, -4, 22, 7.5);
+      ctx.fill(); ctx.stroke();
+
+      // Threaded Stud
+      ctx.fillStyle = '#f1f5f9';
+      ctx.beginPath();
+      ctx.rect(-5.5, 3.5, 11, 9.5);
+      ctx.fill(); ctx.stroke();
+
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1;
+      for (let ty = 5.5; ty <= 11; ty += 2.2) {
+        ctx.beginPath();
+        ctx.moveTo(-5, ty);
+        ctx.lineTo(5, ty);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+
+      // 6. Outer Dial Clock Ticks & Azimuth Degree Labels
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      for (let i = 0; i < 12; i++) {
+        let clock = (i === 0) ? 12 : i;
+        let deg = i * 30;
+
+        let visualDeg = (direction === 'CW') ? deg + rotOffset : -deg - rotOffset;
+        let rad = (visualDeg - 90) * Math.PI / 180;
+
+        let xOut = cx + rDial * Math.cos(rad);
+        let yOut = cy + rDial * Math.sin(rad);
+        let xIn = cx + (rDial - 11) * Math.cos(rad);
+        let yIn = cy + (rDial - 11) * Math.sin(rad);
+
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = (clock % 3 === 0) ? 2.8 : 1.6;
+        ctx.beginPath();
+        ctx.moveTo(xIn, yIn); ctx.lineTo(xOut, yOut);
+        ctx.stroke();
+
+        // Sub-degree ticks
+        for (let m = 1; m <= 3; m++) {
+          let subDeg = deg + m * 7.5;
+          let subVisual = (direction === 'CW') ? subDeg + rotOffset : -subDeg - rotOffset;
+          let subRad = (subVisual - 90) * Math.PI / 180;
+          let sx1 = cx + rDial * Math.cos(subRad);
+          let sy1 = cy + rDial * Math.sin(subRad);
+          let sx2 = cx + (rDial - 5.5) * Math.cos(subRad);
+          let sy2 = cy + (rDial - 5.5) * Math.sin(subRad);
+
+          ctx.strokeStyle = '#94a3b8';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(sx1, sy1); ctx.lineTo(sx2, sy2);
+          ctx.stroke();
+        }
+
+        // Label Position (Push further at Accelerometer location to avoid overlap)
+        let isAccPos = (deg === 0);
+        let textDist = isAccPos ? rDial + 54 : rDial + 28;
+        let lx = cx + textDist * Math.cos(rad);
+        let ly = cy + textDist * Math.sin(rad);
+
+        // Clock Label (e.g. 12H)
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 13px Inter, sans-serif';
+        ctx.fillText(`${clock}H`, lx, ly - 7);
+
+        // Degree Label (e.g. 0°)
+        ctx.fillStyle = '#64748b';
+        ctx.font = '11px JetBrains Mono, sans-serif';
+        ctx.fillText(`${deg}°`, lx, ly + 8);
+      }
+    }
+  </script>
+</body>
+</html>
